@@ -10,15 +10,17 @@ import platform
 import traceback
 from utils import take_screenshot, timing_decorator
 from logger import Logger
+from constants import (
+    MAIN_IMAGES_DIR, OK_BUTTON_IMAGE, SCREENSHOTS_DIR, 
+    BATTLE_START_BUTTON_IMAGE, WINNER_IMAGE, OK_BUTTON_IMAGE, MATCH_OVER_IMAGE,
+    CURRENT_SCREENSHOT, get_card_screenshot_path
+)
 
 from utils import take_screenshot, timing_decorator
 
 class Actions:
     def __init__(self):
         self.logger = Logger(name="Actions")
-        self.os_type = platform.system()
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.images_folder = os.path.join(self.script_dir, 'main_images')
 
         # Initialize ADB connection
         self.adb_client = AdbClient(host="127.0.0.1", port=5037)
@@ -73,7 +75,7 @@ class Actions:
         try:
             screen = take_screenshot(self.device.serial)
             
-            # screen.save(os.path.join(self.script_dir, 'screenshots', 'current.png'))
+            # screen.save(CURRENT_SCREENSHOT)
             
             return screen
         except Exception as e:
@@ -153,7 +155,7 @@ class Actions:
         for i in range(4):
             left = i * card_width
             card_img = card_bar.crop((left, 0, left + card_width, self.CARD_BAR_HEIGHT))
-            save_path = os.path.join(self.script_dir, 'screenshots', f"card_{i+1}.png")
+            save_path = get_card_screenshot_path(i+1)
             card_img.save(save_path)
             cards.append(save_path)
         
@@ -255,7 +257,6 @@ class Actions:
 
     def click_battle_start(self):
         """Find and click the battle start button using ADB and template matching"""
-        button_image = os.path.join(self.images_folder, "battlestartbutton.png")
         confidences = [0.8, 0.7, 0.6, 0.5]  # Try multiple confidence levels
 
         # Define the region for the battle button in device coordinates
@@ -264,7 +265,7 @@ class Actions:
         while True:
             for confidence in confidences:
                 self.logger.debug(f"Looking for battle start button (confidence: {confidence})")
-                result = self._find_template(button_image, confidence, battle_button_region)
+                result = self._find_template(BATTLE_START_BUTTON_IMAGE, confidence, battle_button_region)
                 if result:
                     x, y, match_confidence = result
                     self.logger.info(f"Found battle button at ({x}, {y}) with confidence {match_confidence}")
@@ -272,6 +273,8 @@ class Actions:
                     time.sleep(2)
                     return
 
+            # Click at center of screen in device coordinates, could be a chest animation
+            self._click(640, 400)              
             # If button not found, click to clear screens
             self.click_ok_button()  # Click OK button if any popups appear
 
@@ -279,7 +282,7 @@ class Actions:
     def detect_game_end(self):
         """Detect game end using ADB and template matching"""
         try:
-            winner_img = os.path.join(self.images_folder, "Winner.png")
+
             confidences = [0.8, 0.7, 0.6]
 
             # Define winner detection region in device coordinates
@@ -288,7 +291,7 @@ class Actions:
             for confidence in confidences:
                 # self.logger.debug(f"\nTrying detection with confidence: {confidence}")
                 
-                result = self._find_template(winner_img, confidence, winner_region)
+                result = self._find_template(WINNER_IMAGE, confidence, winner_region)
                 if result:
                     x, y, match_confidence = result
                     self.logger.info(f"Found 'Winner' at ({x}, {y}) with confidence {match_confidence}")
@@ -307,14 +310,13 @@ class Actions:
 
     def click_ok_button(self):
         """Click the OK button to close popups"""
-        ok_button_image = os.path.join(self.images_folder, "okbutton.png")
         confidences = [0.8, 0.6, 0.4]
 
         # Define the region for the OK button in device coordinates
         ok_button_region = (0, 0, self.WIDTH, self.HEIGHT)
         for confidence in confidences:
             self.logger.debug(f"Looking for OK button (confidence: {confidence})")
-            result = self._find_template(ok_button_image, confidence, ok_button_region)
+            result = self._find_template(OK_BUTTON_IMAGE, confidence, ok_button_region)
             if result:
                 x, y, match_confidence = result
                 self.logger.info(f"Found OK button at ({x}, {y}) with confidence {match_confidence}")
@@ -325,14 +327,13 @@ class Actions:
     @timing_decorator
     def detect_match_over(self):
         """Detect match over using ADB and template matching"""
-        matchover_img = os.path.join(self.images_folder, "matchover.png")
         confidences = [0.8, 0.6, 0.4]
         
         # Define the region where the matchover image appears in device coordinates
         region = (100, 570, 900, 200)  # Adjust based on your device resolution
         
         for confidence in confidences:
-            result = self._find_template(matchover_img, confidence, region)
+            result = self._find_template(MATCH_OVER_IMAGE, confidence, region)
             if result:
                 self.logger.info("Match over detected!")
                 return True

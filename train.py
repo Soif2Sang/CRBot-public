@@ -4,26 +4,8 @@ import glob
 import json
 from env import ClashRoyaleEnv
 from dqn_agent import DQNAgent
-from pynput import keyboard
 from datetime import datetime
 from logger import Logger
-
-class KeyboardController:
-    def __init__(self):
-        self.should_exit = False
-        self.listener = keyboard.Listener(on_press=self.on_press)
-        self.listener.start()
-
-    def on_press(self, key):
-        try:
-            if key.char == 'q':
-                print("\nShutdown requested - cleaning up...")
-                self.should_exit = True
-        except AttributeError:
-            pass  # Special key pressed
-            
-    def is_exit_requested(self):
-        return self.should_exit
 
 def get_latest_model_path(models_dir="models"):
     model_files = glob.glob(os.path.join(models_dir, "model_*.pth"))
@@ -52,14 +34,10 @@ def train():
                 agent.epsilon = meta.get("epsilon", 1.0)
             logger.info(f"Epsilon loaded: {agent.epsilon}")
 
-    controller = KeyboardController()
     episodes = 10000
     batch_size = 32
 
     for ep in range(episodes):
-        if controller.is_exit_requested():
-            logger.info("Training interrupted by user.")
-            break
 
         state = env.reset()
         logger.info(f"Episode {ep + 1} starting. Epsilon: {agent.epsilon:.3f}")  # <-- Add this line

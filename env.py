@@ -22,7 +22,11 @@ class ClashRoyaleEnv:
         self.actions = Actions()
         self.rf_model = self.setup_roboflow()
         self.card_model = self.setup_card_roboflow()
-        self.state_size = 1 + 2 * (MAX_ALLIES + MAX_ENEMIES) + NUM_CARDS * 2
+        # Possible state features
+        # - Elixir
+        # - Troop presence
+        # - Deck hand
+        self.state_size = 1 + 2 * (MAX_ALLIES + MAX_ENEMIES) + NUM_CARDS
 
         self.grid_width = 18
         self.grid_height = 28
@@ -152,6 +156,9 @@ class ClashRoyaleEnv:
         # --- Princess tower reward logic ---
         current_enemy_princess_towers = self._count_enemy_princess_towers()
         princess_tower_reward = 0
+        self.logger.extra_visibility(f"Previous enemy princess towers: {self.prev_enemy_princess_towers}")
+        self.logger.extra_visibility(f"Current enemy princess towers: {current_enemy_princess_towers}")
+        
         if self.prev_enemy_princess_towers is not None:
             if current_enemy_princess_towers < self.prev_enemy_princess_towers:
                 princess_tower_reward = 20
@@ -256,12 +263,11 @@ class ClashRoyaleEnv:
         card_info = []
         for card_name in self.current_cards:
             card_data = CARDS_DATA.get(card_name.lower(), CARDS_DATA["unknown"])
-            card_id = card_data["id"]
-            elixir_cost = card_data["elixir"] / 10.0  # Normalize elixir cost
-            card_info.extend([card_id, elixir_cost])
+            card_id = card_data["id"]            
+            card_info.extend([card_id])
         
         # Pad with 0 if less than num_cards
-        card_info += [0] * (NUM_CARDS * 2 - len(card_info))
+        card_info += [0] * (NUM_CARDS - len(card_info))
 
         state = np.array([elixir / 10.0] + ally_flat + enemy_flat + card_info, dtype=np.float32)
         return state
@@ -421,10 +427,21 @@ class ClashRoyaleEnv:
             images={"image": self.screenshot_path}
         )
         predictions = []
-        if isinstance(results, dict) and "predictions" in results:
-            predictions = results["predictions"]
-        elif isinstance(results, list) and results:
-            first = results[0]
-            if isinstance(first, dict) and "predictions" in first:
-                predictions = first["predictions"]
-        return sum(1 for p in predictions if isinstance(p, dict) and p.get("class") == "enemy princess tower")
+        
+        # self.logger.extra_visibility(f"Raw results from troop detection: {results}")
+
+        # Handle the specific structure of the results
+        if isinstance(results, list) and results:
+            results = results[0]  # Get first item
+            
+        if isinstance(results, dict) and 'predictions' in results:
+            predictions = results['predictions'].get('predictions', [])
+        else:
+            predictions = []
+
+        sum = 0
+        for p in predictions:
+            if p.get('class') in ['enemy princess tower', 'enemy king tower']:
+                sum += 1
+
+        return sum
