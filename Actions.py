@@ -278,6 +278,8 @@ class Actions:
             # If button not found, click to clear screens
             self.click_ok_button()  # Click OK button if any popups appear
 
+            self.click_close_button()
+
     def click_close_button(self):
         """Click the close button to close popups"""
         confidences = [0.8, 0.6, 0.4]
