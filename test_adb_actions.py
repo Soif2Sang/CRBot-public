@@ -9,6 +9,7 @@ the ADB implementation is working correctly with BlueStacks.
 import os
 import time
 from Actions import Actions
+from constants import MAIN_IMAGES_DIR
 
 
 class ADBActionsTester:
@@ -17,13 +18,8 @@ class ADBActionsTester:
         self.actions = Actions()
         self.test_results = {}
         
-    def run_all_tests(self):
-        """Run all available tests"""
-        print("\n" + "="*50)
-        print("Starting ADB Actions Test Suite")
-        print("="*50)
-        
-        tests = [
+        # Define all test functions in an array for easier maintenance
+        self.test_functions = [
             ("Device Connection", self.test_device_connection),
             ("Screenshot Capture", self.test_screenshot),
             ("Game Area Capture", self.test_game_area_capture),
@@ -34,10 +30,17 @@ class ADBActionsTester:
             ("Card Play", self.test_card_play),
             ("Template Matching", self.test_template_matching),
             ("Swipe Functionality", self.test_swipe),
-            ("Detect Game End", self.actions.detect_game_end),
+            ("Detect Game End", self.test_detect_game_end),
+            ("Template Location", self.test_template_location),
         ]
         
-        for test_name, test_func in tests:
+    def run_all_tests(self):
+        """Run all available tests"""
+        print("\n" + "="*50)
+        print("Starting ADB Actions Test Suite")
+        print("="*50)
+        
+        for test_name, test_func in self.test_functions:
             print(f"\n{'-'*30}")
             print(f"Testing: {test_name}")
             print(f"{'-'*30}")
@@ -271,6 +274,79 @@ class ADBActionsTester:
             print(f"Swipe error: {e}")
             return False
     
+    def test_detect_game_end(self):
+        """Test game end detection"""
+        print("Testing game end detection...")
+        
+        try:
+            result = self.actions.detect_game_end()
+            print(f"Game end detection result: {result}")
+            return True  # Function executed successfully
+        except Exception as e:
+            print(f"Game end detection error: {e}")
+            return False
+    
+    def test_template_location(self):
+        """Test template location functionality with user choice"""
+        print("Testing template location functionality...")
+        
+        # Get all available templates from main_images directory
+        try:
+            templates = [f for f in os.listdir(MAIN_IMAGES_DIR) if f.endswith('.png')]
+            templates.sort()  # Sort alphabetically for consistency
+            
+            if not templates:
+                print("No template images found in main_images directory")
+                return False
+            
+            print("\nAvailable templates:")
+            for i, template in enumerate(templates, 1):
+                print(f"{i}. {template}")
+            
+            # Get user choice
+            while True:
+                try:
+                    choice = input(f"\nSelect template to locate (1-{len(templates)}): ").strip()
+                    template_index = int(choice) - 1
+                    
+                    if 0 <= template_index < len(templates):
+                        selected_template = templates[template_index]
+                        break
+                    else:
+                        print(f"Please enter a number between 1 and {len(templates)}")
+                except ValueError:
+                    print("Please enter a valid number")
+                except KeyboardInterrupt:
+                    print("\nTemplate location test cancelled by user")
+                    return False
+            
+            # Test template location
+            template_path = os.path.join(MAIN_IMAGES_DIR, selected_template)
+            print(f"\nLocating template: {selected_template}")
+            
+            result = self.actions._find_template(template_path, confidence=0.7)
+            
+            if result:
+                x, y, confidence = result
+                print(f"✓ Template found at position ({x}, {y}) with confidence {confidence:.2f}")
+                
+                # Ask if user wants to click on the found template
+                click_choice = input("Do you want to click on the found template? (y/n): ").strip().lower()
+                if click_choice == 'y':
+                    print("Clicking on template location...")
+                    self.actions._click(x, y)
+                    print("Clicked on template location")
+                
+                return True
+            else:
+                print(f"✗ Template '{selected_template}' not found on current screen")
+                print("This might be normal if the template is not currently visible")
+                return True  # Not finding a template is not necessarily a failure
+                
+        except Exception as e:
+            print(f"Template location error: {e}")
+            return False
+    
     def print_summary(self):
         """Print test results summary"""
         print("\n" + "="*50)
@@ -303,53 +379,46 @@ class ADBActionsTester:
         
         while True:
             print("\nAvailable tests:")
-            print("1. Device Connection")
-            print("2. Screenshot")
-            print("3. Game Area Capture") 
-            print("4. Card Area Capture")
-            print("5. Individual Cards")
-            print("6. Elixir Counting")
-            print("7. Click Test")
-            print("8. Card Play Test")
-            print("9. Template Matching")
-            print("10. Swipe Test")
-            print("11. Detect Game End")
-            print("12. Click OK Button")
-            print("13. Run All Tests")
+            
+            # Display all tests from the array
+            for i, (test_name, _) in enumerate(self.test_functions, 1):
+                print(f"{i}. {test_name}")
+            
+            # Additional utility functions
+            print(f"{len(self.test_functions) + 1}. Click OK Button")
+            print(f"{len(self.test_functions) + 2}. Run All Tests")
             print("0. Exit")
             
-            choice = input("\nEnter test number: ").strip()
+            choice = input(f"\nEnter test number (0-{len(self.test_functions) + 2}): ").strip()
             
             if choice == "0":
                 break
-            elif choice == "1":
-                self.test_device_connection()
-            elif choice == "2":
-                self.test_screenshot()
-            elif choice == "3":
-                self.test_game_area_capture()
-            elif choice == "4":
-                self.test_card_area_capture()
-            elif choice == "5":
-                self.test_individual_cards()
-            elif choice == "6":
-                self.test_elixir_counting()
-            elif choice == "7":
-                self.test_click()
-            elif choice == "8":
-                self.test_card_play()
-            elif choice == "9":
-                self.test_template_matching()
-            elif choice == "10":
-                self.test_swipe()
-            elif choice == "11":
-                self.actions.detect_game_end()
-            elif choice == "12":
-                self.actions.click_ok_button()
-            elif choice == "13":
+            elif choice == str(len(self.test_functions) + 1):
+                # Click OK Button
+                try:
+                    result = self.actions.click_ok_button()
+                    print(f"Click OK Button result: {result}")
+                except Exception as e:
+                    print(f"Click OK Button error: {e}")
+            elif choice == str(len(self.test_functions) + 2):
+                # Run All Tests
                 self.run_all_tests()
             else:
-                print("Invalid choice. Please try again.")
+                try:
+                    test_index = int(choice) - 1
+                    if 0 <= test_index < len(self.test_functions):
+                        test_name, test_func = self.test_functions[test_index]
+                        print(f"\nRunning: {test_name}")
+                        try:
+                            result = test_func()
+                            status = "✓ PASSED" if result else "✗ FAILED"
+                            print(f"Result: {status}")
+                        except Exception as e:
+                            print(f"Error: {e}")
+                    else:
+                        print("Invalid choice. Please try again.")
+                except ValueError:
+                    print("Invalid choice. Please enter a number.")
 
 def main():
     print("ADB Actions Test Utility")
