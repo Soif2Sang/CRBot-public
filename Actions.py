@@ -13,7 +13,7 @@ from logger import Logger
 from constants import (
     MAIN_IMAGES_DIR, OK_BUTTON_IMAGE, SCREENSHOTS_DIR, 
     BATTLE_START_BUTTON_IMAGE, WINNER_IMAGE, OK_BUTTON_IMAGE, MATCH_OVER_IMAGE,
-    CURRENT_SCREENSHOT, get_card_screenshot_path
+    CURRENT_SCREENSHOT, CLOSE_BUTTON_IMAGE, get_card_screenshot_path
 )
 
 from utils import take_screenshot, timing_decorator
@@ -277,6 +277,22 @@ class Actions:
             self._click(640, 400)              
             # If button not found, click to clear screens
             self.click_ok_button()  # Click OK button if any popups appear
+
+    def click_close_button(self):
+        """Click the close button to close popups"""
+        confidences = [0.8, 0.6, 0.4]
+
+        # Define the region for the close button in device coordinates
+        close_button_region = (0, 0, self.WIDTH, self.HEIGHT)
+        for confidence in confidences:
+            self.logger.debug(f"Looking for close button (confidence: {confidence})")
+            result = self._find_template(CLOSE_BUTTON_IMAGE, confidence, close_button_region)
+            if result:
+                x, y, match_confidence = result
+                self.logger.info(f"Found close button at ({x}, {y}) with confidence {match_confidence}")
+                self._click(x, y)
+                time.sleep(2)
+                return
 
     @timing_decorator
     def detect_game_end(self):

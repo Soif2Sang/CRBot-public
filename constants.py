@@ -17,6 +17,7 @@ BATTLE_START_BUTTON_IMAGE = os.path.join(MAIN_IMAGES_DIR, "battlestartbutton.png
 WINNER_IMAGE = os.path.join(MAIN_IMAGES_DIR, "Winner.png")
 OK_BUTTON_IMAGE = os.path.join(MAIN_IMAGES_DIR, "okbutton.png")
 MATCH_OVER_IMAGE = os.path.join(MAIN_IMAGES_DIR, "matchover.png")
+CLOSE_BUTTON_IMAGE = os.path.join(MAIN_IMAGES_DIR, "closebutton.png")
 
 # Elixir images
 ELIXIR_IMAGES = {
