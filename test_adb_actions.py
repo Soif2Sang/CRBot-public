@@ -23,7 +23,6 @@ class ADBActionsTester:
         # Define all test functions in an array for easier maintenance
         self.test_functions = [
             ("Device Connection", self.test_device_connection),
-            ("Screenshot Capture", self.test_screenshot),
             ("Game Area Capture", self.test_game_area_capture),
             ("Card Area Capture", self.test_card_area_capture),
             ("Individual Cards Capture", self.test_individual_cards),
@@ -77,23 +76,6 @@ class ADBActionsTester:
         except Exception as e:
             print(f"Shell command failed: {e}")
             return False
-    
-    def test_screenshot(self):
-        """Test screenshot functionality"""
-        print("Taking screenshot...")
-        screenshot = self.actions._take_screenshot()
-        
-        if screenshot is None:
-            print("Failed to take screenshot")
-            return False
-        
-        # Save test screenshot
-        test_path = os.path.join(SCREENSHOTS_DIR, 'test_screenshot.png')
-        screenshot.save(test_path)
-        print(f"Screenshot saved to: {test_path}")
-        print(f"Screenshot size: {screenshot.size}")
-        
-        return True
     
     def test_game_area_capture(self):
         """Test game area capture"""

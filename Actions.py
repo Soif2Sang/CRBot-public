@@ -10,15 +10,13 @@ import time
 import platform
 import traceback
 import scrcpy
-from utils import recognize_text, take_screenshot, timing_decorator
+from utils import recognize_text, timing_decorator
 from logger import Logger
 from constants import (
     MAIN_IMAGES_DIR, OK_BUTTON_IMAGE, SCREENSHOTS_DIR, 
     BATTLE_START_BUTTON_IMAGE, WINNER_IMAGE, OK_BUTTON_IMAGE, MATCH_OVER_IMAGE,
     CURRENT_SCREENSHOT, CLOSE_BUTTON_IMAGE, get_card_screenshot_path
 )
-
-from utils import take_screenshot, timing_decorator
 
 class Actions:
     def __init__(self):
@@ -105,24 +103,6 @@ class Actions:
             self.logger.error(f"Failed to connect to ADB device: {e}")
             self.logger.error("Run setup_adb.py first to configure ADB connection.")
             return False
-
-    @timing_decorator
-    def _take_screenshot(self):
-        """Take a screenshot using ADB"""
-        if not self.device:
-            self.logger.warning("No device connected")
-            return None
-        try:
-            # screenshot_bytes = self.device.screencap()
-            # screen = Image.open(io.BytesIO(screenshot_bytes))
-            screen = take_screenshot(self.device.serial)
-            
-            # screen.save(CURRENT_SCREENSHOT)
-            
-            return screen
-        except Exception as e:
-            self.logger.error(f"Failed to take screenshot: {e}")
-            return None
 
     def _click(self, x, y):
         """Click at coordinates using ADB"""
