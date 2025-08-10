@@ -51,7 +51,7 @@ def train():
             agent.replay(batch_size)
             state = next_state
             total_reward += reward
-            logger.extra_visibility(f"Step: {state}, Action: {action}, Reward: {reward}, Total Reward: {total_reward}")
+            logger.extra_visibility(f"Reward: {reward}, Total Reward: {total_reward}")
         logger.success(f"Episode {ep + 1}: Total Reward = {total_reward:.2f}, Epsilon = {agent.epsilon:.3f}")
 
         if ep % 10 == 0:

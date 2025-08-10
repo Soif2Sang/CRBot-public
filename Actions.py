@@ -1,3 +1,4 @@
+from itertools import count
 from adbutils import adb
 import io
 from PIL import Image
@@ -10,7 +11,7 @@ import platform
 import traceback
 import scrcpy
 import matplotlib.pyplot as plt
-from utils import take_screenshot, timing_decorator
+from utils import recognize_text, take_screenshot, timing_decorator
 from logger import Logger
 from constants import (
     MAIN_IMAGES_DIR, OK_BUTTON_IMAGE, SCREENSHOTS_DIR, 
@@ -55,7 +56,7 @@ class Actions:
             device=self.device,
             max_width=self.device_height,
             bitrate=1000000000,
-            max_fps=30,
+            max_fps=10,
         )
         
         self.client.add_listener(scrcpy.EVENT_INIT, self.on_init)
@@ -63,8 +64,8 @@ class Actions:
 
         # Start the streaming
         self.client.start(threaded=True, daemon_threaded=True)
-        
-        self.client.alive
+        self._wait_until_thread_starts()
+
 
     def on_init(self):
         self.logger.success(f"Serial: {self.client.device_name}")
@@ -100,7 +101,6 @@ class Actions:
             time.sleep(0.1)
         else:
             self.logger.info("Streaming thread started")
-            self.logger.info(self.last_frame)
 
     def _connect_device(self):
         """Connect to the BlueStacks ADB device"""
@@ -111,6 +111,7 @@ class Actions:
                 self.logger.error("Run setup_adb.py first to configure ADB connection.")
                 return False
             
+            self.logger.extra_visibility(devices)
             # Usually BlueStacks appears as the first device, but you might need to select the right one
             self.device = devices[0]
             self.logger.success(f"Successfully connected to ADB device: {self.device.serial}")
@@ -215,38 +216,28 @@ class Actions:
         return cards
 
     @timing_decorator
-    def count_elixir(self):
+    def count_elixir(self, retry = 0):
         """Count elixir using ADB screenshot analysis"""
         if self.last_frame is None:
             self.logger.warning("Failed to capture screenshot for elixir counting")
             return 0
-            
-        # Convert PIL image to numpy array for OpenCV processing
-        screenshot_np = np.array(self.last_frame)
+
+        if retry == 3:
+            return None
         
-        # Define elixir bar region in device coordinates (you may need to adjust these)
-        elixir_y = 1860  # Approximate Y coordinate of elixir bar
-        elixir_start_x = 355  # Start X coordinate
-        elixir_end_x = 1050    # End X coordinate  
-        elixir_spacing = 65   # Spacing between elixir icons
+        image = np.array(self.last_frame)
+        img_cropped = image[1825:1887, 290:355]
         
-        target = (225, 128, 229)  # Target purple color for elixir
-        tolerance = 80
-        count = 0
+        results = recognize_text(image=img_cropped)
         
-        # Check each elixir position
-        for x in range(elixir_start_x, elixir_end_x, elixir_spacing):
-            if x < screenshot_np.shape[1] and elixir_y < screenshot_np.shape[0]:
-                # Get pixel color at elixir position (convert from RGB to BGR for OpenCV)
-                b, g, r = screenshot_np[elixir_y, x][:3]  # OpenCV uses BGR format
-                
-                # Check if color matches elixir color within tolerance
-                if (abs(r - target[0]) <= tolerance and 
-                    abs(g - target[1]) <= tolerance and 
-                    abs(b - target[2]) <= tolerance):
-                    count += 1
-                    
-        return min(count, 10)  # Cap at 10 elixir
+        if len(results) > 0 and results[0]['rec_text'].isnumeric() and float(results[0]['rec_score']) > 0.7:
+            return max(0, min(int(results[0]['rec_text']), 10))  # Cap at 10 elixir
+        else:
+            pil_image = Image.fromarray(image)
+            pil_image.save(os.path.join(SCREENSHOTS_DIR, "elixir_count_error.png"))
+            self.logger.warning("Failed to recognize elixir count")
+        # 5 As default
+        return self.count_elixir(retry + 1)
 
     def _find_template(self, template_path, confidence=0.8, region=None):
         """Find template image in screenshot using OpenCV template matching"""
@@ -319,7 +310,6 @@ class Actions:
                 result = self._find_template(BATTLE_START_BUTTON_IMAGE, confidence, battle_button_region)
                 if result:
                     x, y, match_confidence = result
-                    self.logger.info(f"Found battle button at ({x}, {y}) with confidence {match_confidence}")
                     self._click(x, y)
                     time.sleep(2)
                     return
@@ -367,9 +357,6 @@ class Actions:
                     # Determine if victory or defeat based on position
                     result_type = "victory" if y > 300 else "defeat"  # Adjust threshold based on device
                     self.logger.info(f"Game result: {result_type}")
-                    time.sleep(5)
-                    
-                    self.click_ok_button()
 
                     return result_type
         except Exception as e:
