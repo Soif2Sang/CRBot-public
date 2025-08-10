@@ -10,7 +10,6 @@ import time
 import platform
 import traceback
 import scrcpy
-import matplotlib.pyplot as plt
 from utils import recognize_text, take_screenshot, timing_decorator
 from logger import Logger
 from constants import (
@@ -80,20 +79,6 @@ class Actions:
             last_frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             # Convert to PIL Image
             self.last_frame = Image.fromarray(last_frame_rgb)
-            # Display frame using matplotlib (works with headless systems)
-            # try:
-            #     print(f"Frame dimensions: {frame.shape[1]}x{frame.shape[0]}")
-            #     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            #     plt.figure(figsize=(8, 6))
-            #     plt.imshow(frame_rgb)
-            #     plt.axis('off')
-            #     plt.title('Live Frame')
-            #     plt.savefig('live_frame.png')  # Save the frame
-            #     plt.show(block=True)
-            #     plt.pause(0.001)  # Small pause to update display
-            #     plt.clf()  # Clear the figure for next frame
-            # except Exception as e:
-            #     self.logger.debug(f"Could not display frame: {e}")
 
     def _wait_until_thread_starts(self):
         """Wait until the streaming thread starts"""
