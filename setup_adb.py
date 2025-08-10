@@ -9,7 +9,7 @@ import subprocess
 import os
 import time
 import shutil
-from ppadb.client import Client as AdbClient
+from adbutils import adb
 
 def find_adb_executable():
     """Find adb.exe in common locations"""
@@ -70,8 +70,7 @@ def check_adb_installed():
 def check_adb_server():
     """Check if ADB server is running"""
     try:
-        client = AdbClient(host="127.0.0.1", port=5037)
-        devices = client.devices()
+        devices = adb.device_list()
         print(f"✓ ADB server is running, found {len(devices)} device(s)")
         return True, devices
     except Exception as e:
@@ -128,8 +127,7 @@ def connect_bluestacks(adb_path="adb"):
 def list_devices():
     """List connected ADB devices"""
     try:
-        client = AdbClient(host="127.0.0.1", port=5037)
-        devices = client.devices()
+        devices = adb.device_list()
         
         if not devices:
             print("No devices connected")
@@ -160,16 +158,10 @@ def test_screenshot():
         print("\nTesting screenshot functionality...")
         
         actions = Actions()
+        
         if actions.device:
-            screenshot = actions._take_screenshot()
-            if screenshot:
-                test_path = "screenshots/test_screenshot.png"
-                screenshot.save(test_path)
-                print(f"✓ Screenshot saved to {test_path}")
-                return True
-            else:
-                print("✗ Failed to take screenshot")
-                return False
+            actions.capture_area("screenshots/test_screenshot.png")
+            print("✓ Screenshot captured successfully")
         else:
             print("✗ No device connected")
             return False

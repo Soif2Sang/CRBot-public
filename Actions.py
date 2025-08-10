@@ -1,4 +1,4 @@
-from ppadb.client import Client as AdbClient
+from adbutils import adb
 import io
 from PIL import Image
 import cv2
@@ -8,6 +8,8 @@ from datetime import datetime
 import time
 import platform
 import traceback
+import scrcpy
+import matplotlib.pyplot as plt
 from utils import take_screenshot, timing_decorator
 from logger import Logger
 from constants import (
@@ -21,12 +23,7 @@ from utils import take_screenshot, timing_decorator
 class Actions:
     def __init__(self):
         self.logger = Logger(name="Actions")
-
-        # Initialize ADB connection
-        self.adb_client = AdbClient(host="127.0.0.1", port=5037)
-        self.device = None
-        self._connect_device()
-
+        
         # BlueStacks default resolution (you may need to adjust based on your setup)
         self.device_width = 1080
         self.device_height = 1920
@@ -47,11 +44,68 @@ class Actions:
         self.CARD_BAR_Y = 1590
         self.CARD_BAR_WIDTH = 820
         self.CARD_BAR_HEIGHT = 250
+        
+        # Initialize ADB connection
+        self.device = None
+        self.last_frame = None
+        self._connect_device()
+
+        # Setup client, which is used to retrieve the video stream (we do not use screencap because it is too slow (average of 300ms per screenshot))
+        self.client = scrcpy.Client(
+            device=self.device,
+            max_width=self.device_height,
+            bitrate=1000000000,
+            max_fps=30,
+        )
+        
+        self.client.add_listener(scrcpy.EVENT_INIT, self.on_init)
+        self.client.add_listener(scrcpy.EVENT_FRAME, self.on_frame)
+
+        # Start the streaming
+        self.client.start(threaded=True, daemon_threaded=True)
+        
+        self.client.alive
+
+    def on_init(self):
+        self.logger.success(f"Serial: {self.client.device_name}")
+
+    def on_frame(self, frame):
+        """Handle incoming video frames"""
+        if frame is None:
+            return
+            return self.logger.info("No frame received")
+        else:
+            # Convert last_frame from OpenCV BGR to RGB format
+            last_frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Convert to PIL Image
+            self.last_frame = Image.fromarray(last_frame_rgb)
+            # Display frame using matplotlib (works with headless systems)
+            # try:
+            #     print(f"Frame dimensions: {frame.shape[1]}x{frame.shape[0]}")
+            #     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #     plt.figure(figsize=(8, 6))
+            #     plt.imshow(frame_rgb)
+            #     plt.axis('off')
+            #     plt.title('Live Frame')
+            #     plt.savefig('live_frame.png')  # Save the frame
+            #     plt.show(block=True)
+            #     plt.pause(0.001)  # Small pause to update display
+            #     plt.clf()  # Clear the figure for next frame
+            # except Exception as e:
+            #     self.logger.debug(f"Could not display frame: {e}")
+
+    def _wait_until_thread_starts(self):
+        """Wait until the streaming thread starts"""
+        while not self.client.alive or self.last_frame is None:
+            time.sleep(0.1)
+        else:
+            self.logger.info("Streaming thread started")
+            self.logger.info(self.last_frame)
 
     def _connect_device(self):
         """Connect to the BlueStacks ADB device"""
         try:
-            devices = self.adb_client.devices()
+            devices = adb.device_list()
             if not devices:
                 self.logger.error("No ADB devices found. Make sure BlueStacks is running and ADB is enabled.")
                 self.logger.error("Run setup_adb.py first to configure ADB connection.")
@@ -73,6 +127,8 @@ class Actions:
             self.logger.warning("No device connected")
             return None
         try:
+            # screenshot_bytes = self.device.screencap()
+            # screen = Image.open(io.BytesIO(screenshot_bytes))
             screen = take_screenshot(self.device.serial)
             
             # screen.save(CURRENT_SCREENSHOT)
@@ -110,18 +166,16 @@ class Actions:
 
     def capture_area(self, save_path):
         """Capture screenshot of game area using ADB"""
-        screenshot = self._take_screenshot()
-        if screenshot:
-            screenshot.save(save_path)
+        if self.last_frame is not None:
+            self.last_frame.save(save_path)
         else:
             self.logger.warning("Failed to capture screenshot")
 
     def capture_card_area(self, save_path):
         """Capture screenshot of card area using ADB"""
-        screenshot = self._take_screenshot()
-        if screenshot:
+        if self.last_frame is not None:
             # Crop to card bar area
-            cropped = screenshot.crop((
+            cropped = self.last_frame.crop((
                 self.CARD_BAR_X, 
                 self.CARD_BAR_Y, 
                 self.CARD_BAR_X + self.CARD_BAR_WIDTH, 
@@ -134,13 +188,12 @@ class Actions:
     @timing_decorator
     def capture_individual_cards(self):
         """Capture and split card bar into individual card images using ADB"""
-        screenshot = self._take_screenshot()
-        if not screenshot:
+        if self.last_frame is None:
             self.logger.warning("Failed to capture screenshot for individual cards")
             return []
             
         # Crop to card bar area
-        card_bar = screenshot.crop((
+        card_bar = self.last_frame.crop((
             self.CARD_BAR_X, 
             self.CARD_BAR_Y, 
             self.CARD_BAR_X + self.CARD_BAR_WIDTH, 
@@ -164,13 +217,12 @@ class Actions:
     @timing_decorator
     def count_elixir(self):
         """Count elixir using ADB screenshot analysis"""
-        screenshot = self._take_screenshot()
-        if not screenshot:
+        if self.last_frame is None:
             self.logger.warning("Failed to capture screenshot for elixir counting")
             return 0
             
         # Convert PIL image to numpy array for OpenCV processing
-        screenshot_np = np.array(screenshot)
+        screenshot_np = np.array(self.last_frame)
         
         # Define elixir bar region in device coordinates (you may need to adjust these)
         elixir_y = 1860  # Approximate Y coordinate of elixir bar
@@ -198,12 +250,11 @@ class Actions:
 
     def _find_template(self, template_path, confidence=0.8, region=None):
         """Find template image in screenshot using OpenCV template matching"""
-        screenshot = self._take_screenshot()
-        if not screenshot:
+        if self.last_frame is None:
             return None
             
         # Convert PIL to OpenCV format
-        screenshot_cv = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+        screenshot_cv = cv2.cvtColor(np.array(self.last_frame), cv2.COLOR_RGB2BGR)
         
         # Crop to region if specified
         if region:
@@ -294,7 +345,6 @@ class Actions:
                 self.logger.info(f"Found close button at ({x}, {y}) with confidence {match_confidence}")
                 self._click(x, y)
                 time.sleep(2)
-                return
 
     @timing_decorator
     def detect_game_end(self):
@@ -340,7 +390,6 @@ class Actions:
                 self.logger.info(f"Found OK button at ({x}, {y}) with confidence {match_confidence}")
                 self._click(x, y)
                 time.sleep(2)
-                return
     
     @timing_decorator
     def detect_match_over(self):

@@ -8,14 +8,16 @@ the ADB implementation is working correctly with BlueStacks.
 
 import os
 import time
+import traceback
 from Actions import Actions
-from constants import MAIN_IMAGES_DIR
+from constants import MAIN_IMAGES_DIR, SCREENSHOTS_DIR
 
 
 class ADBActionsTester:
     def __init__(self):
         print("Initializing ADB Actions Tester...")
         self.actions = Actions()
+        print("ADB Actions Tester initialized.")
         self.test_results = {}
         
         # Define all test functions in an array for easier maintenance
@@ -32,6 +34,7 @@ class ADBActionsTester:
             ("Swipe Functionality", self.test_swipe),
             ("Detect Game End", self.test_detect_game_end),
             ("Template Location", self.test_template_location),
+            ("Tower States & Levels", self.test_tower_states_and_levels),
         ]
         
     def run_all_tests(self):
@@ -85,7 +88,7 @@ class ADBActionsTester:
             return False
         
         # Save test screenshot
-        test_path = os.path.join(self.actions.script_dir, 'screenshots/test_screenshot.png')
+        test_path = os.path.join(SCREENSHOTS_DIR, 'test_screenshot.png')
         screenshot.save(test_path)
         print(f"Screenshot saved to: {test_path}")
         print(f"Screenshot size: {screenshot.size}")
@@ -95,7 +98,7 @@ class ADBActionsTester:
     def test_game_area_capture(self):
         """Test game area capture"""
         print("Capturing game area...")
-        test_path = os.path.join(self.actions.script_dir, 'test_game_area.png')
+        test_path = os.path.join(SCREENSHOTS_DIR, 'test_game_area.png')
         
         try:
             self.actions.capture_area(test_path)
@@ -112,7 +115,7 @@ class ADBActionsTester:
     def test_card_area_capture(self):
         """Test card area capture"""
         print("Capturing card area...")
-        test_path = os.path.join(self.actions.script_dir, 'test_card_area.png')
+        test_path = os.path.join(SCREENSHOTS_DIR, 'test_card_area.png')
         
         try:
             self.actions.capture_card_area(test_path)
@@ -131,7 +134,7 @@ class ADBActionsTester:
         print("Capturing individual cards...")
         
         # Ensure screenshots directory exists
-        screenshots_dir = os.path.join(self.actions.script_dir, 'screenshots')
+        screenshots_dir = os.path.join(SCREENSHOTS_DIR, 'screenshots')
         if not os.path.exists(screenshots_dir):
             os.makedirs(screenshots_dir)
         
@@ -345,6 +348,53 @@ class ADBActionsTester:
                 
         except Exception as e:
             print(f"Template location error: {e}")
+            traceback.print_exc()
+            return False
+    
+    def test_tower_states_and_levels(self):
+        """Test tower states detection and dynamic level detection functionality"""
+        print("Testing tower states and level detection...")
+        
+        try:
+            from env import ClashRoyaleEnv
+            
+            env = ClashRoyaleEnv()
+            env._init_tower_states()
+            env._detect_player_levels_from_ui()
+            tower_states = env.check_towers_state()
+            
+            print("\nTower States:")
+            for tower_name, hp_state in tower_states.items():
+                hp_percentage = hp_state * 100
+                max_hp = env.tower_max_hp.get(tower_name, "Unknown")
+                print(f"  {tower_name}: {hp_percentage:.1f}% HP (Max HP: {max_hp})")
+            
+            print("\nDetected Tower Levels:")
+            for side, level in env.tower_levels.items():
+                if level is not None:
+                    print(f"  {side} towers: Level {level}")
+                else:
+                    print(f"  {side} towers: Level not detected yet")
+            
+            # Test state integration
+            print("\nTesting state integration...")
+            state = env._get_state()
+            if state is not None:
+                tower_start_idx = 1 + 2 * (10 + 10) + 4  # After elixir, allies, enemies, cards
+                tower_states_from_state = state[tower_start_idx:tower_start_idx + 6]
+                
+                print("Tower states from environment state:")
+                tower_names = ['enemy_left', 'enemy_king', 'enemy_right', 'ally_left', 'ally_king', 'ally_right']
+                for i, tower_name in enumerate(tower_names):
+                    hp_percentage = tower_states_from_state[i] * 100
+                    print(f"  {tower_name}: {hp_percentage:.1f}% HP")
+            
+            print("✓ Tower states and level detection test completed successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Tower states and levels test error: {e}")
+            traceback.print_exc()
             return False
     
     def print_summary(self):
@@ -455,3 +505,4 @@ if __name__ == "__main__":
         print("\n\nTest interrupted by user.")
     except Exception as e:
         print(f"\nUnexpected error: {e}")
+        traceback.print_exc()
